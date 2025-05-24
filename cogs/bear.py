@@ -1,15 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Kingshot Bot – New Bear Scheduler (NEWbear.py)
+Kingshot Bot – bear.py
 ====================================================
-A rewrite of the bear scheduler with:
-- Per-event asyncio.Tasks
-- Single active bear per guild
-- Minimal JSON writes (only on create, cancel, victory cleanup)
-- Robust startup sync: correct embed + single ping for current phase
-- Ping deduplication by scanning recent messages (last 25)
-- Victory grace period and conditional replacement
-- Embed and ping content unchanged
 """
 
 from __future__ import annotations
