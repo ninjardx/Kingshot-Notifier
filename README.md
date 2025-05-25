@@ -20,3 +20,8 @@ Kingshot Bot is a multi-server Discord bot crafted for gaming communities. It of
 https://discord.com/oauth2/authorize?client_id=1366499729923379271&permissions=8&integration_type=0&scope=bot+applications.commands
 
 If you have any questions please reach out to me on discord my user is ninjardx
+
+## 🤝 Contributing
+Contributions are welcome! Please fork the repository and submit a pull request for any enhancements or bug fixes.
+
+
