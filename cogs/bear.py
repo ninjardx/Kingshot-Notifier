@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Kingshot Bot – bear.py
+Kingshot Bot – Bear Scheduler 
 ====================================================
+
 """
 
 from __future__ import annotations
@@ -207,10 +208,8 @@ class NewBearScheduler(commands.Cog):
                         await prev_msg.delete()
                     except (discord.NotFound, discord.Forbidden):
                         pass
-                else:
-                     # no next bear → leave this victory embed up
-                     return
-
+                # Always break after victory phase to run cleanup
+                break
 
         # On cycle complete: remove from JSON and schedule the next
         cfg_bears = gcfg[str(ev.guild_id)]["bears"]
@@ -341,7 +340,7 @@ class NewBearScheduler(commands.Cog):
         cfg = gcfg.setdefault(guild_id, {})
         bears = cfg.setdefault("bears", [])
         if any(abs(b["epoch"] - epoch) < 3600 for b in bears):
-            return await interaction.followup.send("❌ Conflicts with another bear (±1 hour)", ephemeral=True)
+            return await interaction.followup.send("❌ Conflicts with another bear (±1\u202Fhour)", ephemeral=True)
 
         # Persist new bear
         new_id = str(uuid.uuid4())[:8]
@@ -349,13 +348,39 @@ class NewBearScheduler(commands.Cog):
         bears.sort(key=lambda b: b["epoch"])
         save_config(gcfg)
 
-        # Schedule if first
-        if len(bears) == 1 or epoch < self.events.get(list(self.events)[0], BearEvent(0,0)).epoch:
+        # Find the current active bear event for this guild (the soonest future bear in self.events)
+        active_ev = None
+        active_ev_epoch = None
+        for ev in self.events.values():
+            if ev.guild_id == interaction.guild.id:
+                if active_ev is None or ev.epoch < active_ev_epoch:
+                    active_ev = ev
+                    active_ev_epoch = ev.epoch
+
+        # If the new bear is before the current active bear, replace it
+        if active_ev is None or epoch < active_ev.epoch:
+            # Cancel the current active bear if it exists
+            if active_ev is not None:
+                if active_ev.task:
+                    active_ev.task.cancel()
+                ch = await ensure_channel(interaction.guild, BEAR_CHANNEL)
+                if active_ev.message_id:
+                    try:
+                        msg = await ch.fetch_message(active_ev.message_id)
+                        await msg.delete()
+                    except:
+                        pass
+                await self._cleanup_pings(ch)
+                # Remove from self.events
+                self.events.pop(active_ev.id, None)
+            # Start the new bear event cycle
             ev = BearEvent(interaction.guild.id, epoch, new_id)
             self.events[ev.id] = ev
             ev.task = asyncio.create_task(self._run_event_cycle(ev))
-
-        await interaction.followup.send(f"✅ Bear scheduled for <t:{epoch}:F>", ephemeral=True)
+            await interaction.followup.send(f"✅ Bear scheduled for <t:{epoch}:F> (now active)", ephemeral=True)
+        else:
+            # Just queue the new bear, don't start its event cycle yet
+            await interaction.followup.send(f"✅ Bear scheduled for <t:{epoch}:F> (queued)", ephemeral=True)
 
     @app_commands.command(name="cancelbear", description="❌ Cancel an upcoming bear event")
     async def cancelbear(self, interaction: discord.Interaction, bear_id: str):
@@ -380,6 +405,16 @@ class NewBearScheduler(commands.Cog):
         cfg = gcfg[str(interaction.guild.id)]
         cfg["bears"] = [b for b in cfg.get("bears", []) if b["id"] != bear_id]
         save_config(gcfg)
+
+        # Start the next soonest bear if any are queued
+        bears = cfg.get("bears", [])
+        if bears:
+            next_bear = min(bears, key=lambda b: b["epoch"])
+            # Only start if not already running
+            if next_bear["id"] not in self.events:
+                next_ev = BearEvent(interaction.guild.id, next_bear["epoch"], next_bear["id"])
+                self.events[next_ev.id] = next_ev
+                next_ev.task = asyncio.create_task(self._run_event_cycle(next_ev))
 
         await interaction.followup.send("🗑️ Bear cancelled", ephemeral=True)
 
