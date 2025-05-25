@@ -1,6 +1,6 @@
 # 🏹 Kingshot Bot
 
-Kingshot Bot is a multi-server Discord bot crafted for gaming communities. It offers robust scheduling features, including bear attack events, daily arena alerts, customizable event timers, and emoji-based reaction roles. Fully powered by slash commands and built for resilience across reboots.
+Kingshot Bot is a multi-server Discord bot crafted for gaming communities. It offers robust scheduling features, including bear attack events, daily arena alerts, customizable event timers, and emoji-based reaction roles. Fully powered by slash commands.
 
 ---
 
@@ -10,7 +10,6 @@ Kingshot Bot is a multi-server Discord bot crafted for gaming communities. It of
 - 🏟️ Daily Arena Alerts
 - ⏰ Customizable Event Timers
 - 🎭 Emoji-Based Reaction Roles
-- 🔄 Resilient Across Reboots
 
 ---
 
