@@ -19,6 +19,15 @@ if not os.path.exists(".env"):
 if not token:
     raise ValueError("❌ Bot token is missing. Set KINGSHOT_BOT_TOKEN in Railway.")
 
+# ─── Optional Command Center Import ─────────────────────────────
+try:
+    from command_center import start_command_center
+    command_center_available = True
+except ImportError:
+    print("⚠️ `command_center.py` not found. Skipping live command center.")
+    command_center_available = False
+
+
 # ─── Logging ─────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,

@@ -80,9 +80,15 @@ ROLE_EMOJIS       = {
 SCHEDULER_INTERVAL_SEC = 60
 
 #  ─── Load per-guild channels & IDs ─────────────────────────
-CONFIG_PATH = Path(__file__).parent / (
-    "bot_config_dev.json" if os.getenv("KINGSHOT_DEV_MODE") == "1" else "bot_config.json"
+CONFIG_PATH = Path(os.getenv("KINGSHOT_CONFIG_PATH", "")) if os.getenv("KINGSHOT_CONFIG_PATH") else (
+    Path(__file__).parent / (
+        "bot_config_dev.json" if os.getenv("KINGSHOT_DEV_MODE") == "1" else "bot_config.json"
+    )
 )
-with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-    gcfg = json.load(f)
+if CONFIG_PATH.exists():
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        gcfg = json.load(f)
+else:
+    print(f"⚠️ Config file {CONFIG_PATH} not found — using empty config.")
+    gcfg = {}
 

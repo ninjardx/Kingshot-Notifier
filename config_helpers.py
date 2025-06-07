@@ -3,6 +3,7 @@ from typing import Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
 import logging
+from config import CONFIG_PATH  # Import CONFIG_PATH from config.py
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -38,22 +39,23 @@ class ConfigValidationError(Exception):
 def _load_config() -> Dict[str, Any]:
     """Load the bot config file"""
     try:
-        with open('bot_config_dev.json', 'r') as f:
+        with open(CONFIG_PATH, 'r') as f:
             return json.load(f)
     except FileNotFoundError:
-        logger.error("Config file not found")
+        logger.error(f"Config file not found at {CONFIG_PATH}")
         raise
     except json.JSONDecodeError:
-        logger.error("Invalid JSON in config file")
+        logger.error(f"Invalid JSON in config file at {CONFIG_PATH}")
         raise
 
 def _save_config(config: Dict[str, Any]) -> None:
     """Save the bot config file"""
     try:
-        with open('bot_config_dev.json', 'w') as f:
+        with open(CONFIG_PATH, 'w') as f:
             json.dump(config, f, indent=2)
+        logger.info(f"Saved config to {CONFIG_PATH}")
     except Exception as e:
-        logger.error(f"Failed to save config: {e}")
+        logger.error(f"Failed to save config to {CONFIG_PATH}: {e}")
         raise
 
 def _validate_offset(offset: int, min_val: int = 1, max_val: int = 60) -> None:
