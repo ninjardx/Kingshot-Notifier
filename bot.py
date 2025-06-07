@@ -13,10 +13,9 @@ load_dotenv()  # ⬅️ This loads variables from .env into os.environ
 
 # Validate token
 token = os.getenv("KINGSHOT_DEV_TOKEN")
-if not os.path.exists(".env"):
-    raise FileNotFoundError("❌ .env file not found. Create one with KINGSHOT_DEV_TOKEN.")
+
 if not token:
-    raise ValueError("❌ Bot token is missing. Set KINGSHOT_BOT_TOKEN in Railway.")
+    raise ValueError("❌ Bot token is missing. Set KINGSHOT_BOT_TOKEN.")
 
 
 # ─── Logging ─────────────────────────────────────────────────
