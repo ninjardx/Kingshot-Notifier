@@ -11,11 +11,17 @@ import sys
 
 load_dotenv()  # ⬅️ This loads variables from .env into os.environ
 
+# Development mode detection
+DISCORD_ENABLED = os.getenv("DISCORD_ENABLED", "1") == "1"
+if os.getenv("CODESPACES") or "codex" in sys.argv[0].lower():
+    DISCORD_ENABLED = False
+    logging.info("🔄 Development mode detected - Discord connection disabled")
+
 # Validate token
 token = os.getenv("KINGSHOT_DEV_TOKEN")
 
-if not token:
-    raise ValueError("❌ Bot token is missing. Set KINGSHOT_BOT_TOKEN.")
+if not token and DISCORD_ENABLED:
+    raise ValueError("❌ Bot token is missing. Set KINGSHOT_DEV_TOKEN in .env")
 
 
 # ─── Logging ─────────────────────────────────────────────────
@@ -46,51 +52,54 @@ COGS = [
     "cogs.installer"
 ]
 
+async def dummy_lifecycle():
+    """Keeps bot alive and lets all startup tasks/cogs initialize without Discord connection"""
+    await asyncio.sleep(2)
+    log.info("Dummy lifecycle complete (no Discord connection)")
+
 # ─── Main Entrypoint ───
 async def main():
     log.info("Starting Kingshot Bot...")
     try:
-        log.info("Connecting to Discord...")
-        # First login to Discord (non-blocking)
-        await bot.login(token)
-        
-        # Start the bot in the background
-        bot_task = asyncio.create_task(bot.connect())
-        
-        # Wait for the bot to be ready
-        await bot.wait_until_ready()
-        log.info("Bot is ready, loading cogs...")
-        
-        # Then load cogs
+        if DISCORD_ENABLED:
+            log.info("Connecting to Discord...")
+            await bot.login(token)
+            bot_task = asyncio.create_task(bot.connect())
+            await bot.wait_until_ready()
+        else:
+            log.info("🚫 Discord gateway connection disabled (DEV MODE)")
+            bot_task = asyncio.create_task(dummy_lifecycle())
+
+        log.info("Loading cogs...")
         for cog in COGS:
             try:
                 await bot.load_extension(cog)
                 log.info(f"Loaded cog: {cog}")
             except Exception as e:
                 log.error(f"Failed to load cog {cog}: {e}")
-                raise
-        
-        log.info("All cogs loaded successfully")
-        
-        # Sync commands after all cogs are loaded
-        log.info("Syncing commands...")
-        synced = await bot.tree.sync()
-        log.info(f"✅ Globally synced {len(synced)} commands.")
+                if DISCORD_ENABLED:  # Only raise in production mode
+                    raise
+
+        if DISCORD_ENABLED:
+            # Sync commands after all cogs are loaded
+            log.info("Syncing commands...")
+            synced = await bot.tree.sync()
+            log.info(f"✅ Globally synced {len(synced)} commands.")
         
         # Keep the bot running
         await bot_task
         
     except Exception as e:
         log.exception("Bot encountered an exception:", exc_info=e)
-        # Exit with error code if we crashed
-        sys.exit(1)
+        if DISCORD_ENABLED:  # Only exit in production mode
+            sys.exit(1)
     finally:
         log.info("Shutting down bot...")
-        try:
-            await bot.close()
-        except Exception as e:
-            log.error(f"Error during shutdown: {e}")
-        # Don't exit here - let the watchdog handle it
+        if DISCORD_ENABLED:
+            try:
+                await bot.close()
+            except Exception as e:
+                log.error(f"Error during shutdown: {e}")
 
 @bot.event
 async def on_ready():
