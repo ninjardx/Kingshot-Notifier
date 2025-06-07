@@ -6,7 +6,6 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 from config import DEFAULT_ACTIVITY, DEFAULT_ACTIVITY_TYPE, DEFAULT_STATUS
-from command_center import start_command_center
 import sys
 
 
@@ -18,14 +17,6 @@ if not os.path.exists(".env"):
     raise FileNotFoundError("❌ .env file not found. Create one with KINGSHOT_DEV_TOKEN.")
 if not token:
     raise ValueError("❌ Bot token is missing. Set KINGSHOT_BOT_TOKEN in Railway.")
-
-# ─── Optional Command Center Import ─────────────────────────────
-try:
-    from command_center import start_command_center
-    command_center_available = True
-except ImportError:
-    print("⚠️ `command_center.py` not found. Skipping live command center.")
-    command_center_available = False
 
 
 # ─── Logging ─────────────────────────────────────────────────
