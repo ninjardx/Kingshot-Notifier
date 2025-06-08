@@ -30,7 +30,7 @@ from config import (
     EMBED_COLOR_VICTORY,
     EMOJI_THUMBNAILS
 )
-from command_center import live_feed
+from admin_tools import live_feed
 from config_helpers import get_bear_ping_settings
 
 # ────────────────────────────────────────────────────────────

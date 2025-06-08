@@ -13,7 +13,7 @@ from discord.ext import commands
 
 from helpers import save_config, ensure_channel
 from config import gcfg, EVENT_CHANNEL, EMBED_COLOR_EVENT, EMOJI_THUMBNAILS_EVENTS
-from command_center import live_feed
+from admin_tools import live_feed
 from config_helpers import get_event_ping_settings
 
 EVENT_TEMPLATES = {
@@ -21,7 +21,7 @@ EVENT_TEMPLATES = {
         "title": "Hall Of Governors",
         "description": "Compete in the Hall Of Governors event!",
         "thumbnail": "https://example.com/hog.png",
-        "duration_minutes": 7 * 24 * 60  # 7 days
+        "duration_minutes": 7 * 24 * 60  # 9 days
     },
     "all_out_event": {
         "title": "All Out Event",
@@ -46,7 +46,29 @@ EVENT_TEMPLATES = {
         "description": "Battle in the Kingdom V Kingdom event!",
         "thumbnail": "https://example.com/kvk.png",
         "duration_minutes": 5 * 24 * 60  # 5 days
+    },
+    "sanctuary_battles": {
+        "title": "Sanctuary Battle",
+        "description": "Fight for control of the Sanctuary!",
+        "thumbnail": "https://example.com/sanctuary.png",
+        "duration_minutes": 2 * 60  # 2 hours
+    },
+    "Castle_Battle": {
+        "title": "Castle Battle",
+        "description": "Participate in the Castle Battle!",
+        "thumbnail": "https://example.com/castle.png",
+        "duration_minutes": 1 * 60 * 4  # 4 hours
     }
+}
+
+EVENT_EMOJIS = {
+    "hall_of_governors": "<:stateagekingshot300x291:1375519500820025454>",
+    "all_out_event": "🏆",
+    "viking_vengeance": "⚔️",
+    "swordland_showdown": "🗡️",
+    "kingdom_v_kingdom": "👑",
+    "sanctuary_battles": "🛡️",
+    "Castle_Battle": "🏰"
 }
 
 def make_event_welcome_embed() -> discord.Embed:
@@ -118,61 +140,96 @@ class EventEntry:
         embed.set_footer(text="Kingshot Bot • Events • UTC")
         return embed
 
-class AddEventModeSelect(discord.ui.View):
+class AddEventView(discord.ui.View):
     def __init__(self, bot, scheduler):
         super().__init__(timeout=60)
         self.bot = bot
         self.scheduler = scheduler
 
-    @discord.ui.select(
-        placeholder="How would you like to add an event?",
-        min_values=1,
-        max_values=1,
-        options=[
-            discord.SelectOption(label="Manual", value="manual", description="Enter all event details manually"),
-            discord.SelectOption(label="Template", value="template", description="Choose from a curated template")
-        ]
-    )
-    async def select_callback(self, interaction: discord.Interaction, select: discord.ui.Select):
-        mode = select.values[0]
-        await interaction.response.defer(ephemeral=True)
-        if mode == "manual":
-            modal = ManualEventModal(self.scheduler)
-            await interaction.followup.send_modal(modal)
-        else:
-            template_view = AddEventTemplateSelect(self.bot, self.scheduler)
-            await interaction.followup.send("Select an event template:", view=template_view, ephemeral=True)
-
-class AddEventTemplateSelect(discord.ui.View):
-    def __init__(self, bot, scheduler):
-        super().__init__(timeout=60)
-        self.bot = bot
-        self.scheduler = scheduler
-
-    @discord.ui.select(
-        placeholder="Select an event template",
-        min_values=1,
-        max_values=1,
-        options=[
-            discord.SelectOption(label="Hall Of Governors", value="hall_of_governors", description="Pre-built Hall Of Governors event"),
-            discord.SelectOption(label="All Out Event", value="all_out_event", description="Pre-built All Out Event"),
-            discord.SelectOption(label="Viking Vengeance", value="viking_vengeance", description="Pre-built Viking Vengeance event"),
-            discord.SelectOption(label="Sanctuary Battles", value="sanctuary_battles", description="Pre-built Sanctuary Battles event"),
-            discord.SelectOption(label="Swordland Showdown", value="swordland_showdown", description="Pre-built Swordland Showdown event"),
-            discord.SelectOption(label="Kingdom V Kingdom", value="kingdom_v_kingdom", description="Pre-built Kingdom V Kingdom event")
-        ]
-    )
-    async def select_callback(self, interaction: discord.Interaction, select: discord.ui.Select):
-        template = select.values[0]
-        modal = TemplateEventModal(self.scheduler, template)
+    @discord.ui.button(label="Manual Event", style=discord.ButtonStyle.primary, emoji="✏️", row=0)
+    async def manual_event(self, interaction: discord.Interaction, button: discord.ui.Button):
+        modal = ManualEventModal(self.scheduler)
         await interaction.response.send_modal(modal)
 
-class ManualEventModal(discord.ui.Modal, title="Add Event Manually"):
-    event_title = discord.ui.TextInput(label="Title", required=True)
-    event_description = discord.ui.TextInput(label="Description", required=True, style=discord.TextStyle.paragraph)
-    event_start = discord.ui.TextInput(label="Start (YYYY-MM-DD HH:MM UTC)", required=True)
-    event_end = discord.ui.TextInput(label="End (YYYY-MM-DD HH:MM UTC)", required=True)
-    event_thumbnail = discord.ui.TextInput(label="Thumbnail URL (optional)", required=False)
+    @discord.ui.button(label="Template Event", style=discord.ButtonStyle.primary, emoji="📋", row=0)
+    async def template_event(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Create a new view with template options
+        template_view = TemplateSelectView(self.scheduler)
+        await interaction.response.edit_message(
+            content="Select an event template:",
+            view=template_view
+        )
+
+class TemplateSelectView(discord.ui.View):
+    def __init__(self, scheduler):
+        super().__init__(timeout=60)
+        self.scheduler = scheduler
+        # Add template options dynamically
+        for template_key, template in EVENT_TEMPLATES.items():
+            # Get emoji from EVENT_EMOJIS, fallback to a default emoji
+            emoji = EVENT_EMOJIS.get(template_key, "📋")
+            self.add_item(TemplateButton(template_key, template, emoji))
+
+class TemplateButton(discord.ui.Button):
+    def __init__(self, template_key: str, template: dict, emoji: str):
+        # Convert template_key to a readable label
+        label = template_key.replace("_", " ").title()
+        
+        # Parse the emoji string into a PartialEmoji if it's a custom emoji
+        if emoji.startswith("<") and emoji.endswith(">"):
+            # Extract emoji ID and name from the string
+            # Format: <:name:id>
+            emoji_parts = emoji.strip("<>").split(":")
+            if len(emoji_parts) == 3:
+                emoji = discord.PartialEmoji(name=emoji_parts[1], id=int(emoji_parts[2]))
+            else:
+                emoji = "📋"  # Fallback if parsing fails
+        else:
+            # For standard emojis, use as is
+            emoji = emoji
+
+        super().__init__(
+            label=label,
+            style=discord.ButtonStyle.primary,
+            emoji=emoji,
+            custom_id=f"template_{template_key}"
+        )
+        self.template_key = template_key
+        self.template = template
+
+    async def callback(self, interaction: discord.Interaction):
+        modal = TemplateEventModal(self.view.scheduler, self.template_key)
+        await interaction.response.send_modal(modal)
+
+class ManualEventModal(discord.ui.Modal, title="Create Manual Event"):
+    event_title = discord.ui.TextInput(
+        label="Event Title",
+        placeholder="Enter the event title",
+        required=True,
+        max_length=100
+    )
+    event_description = discord.ui.TextInput(
+        label="Event Description",
+        placeholder="Describe the event details",
+        required=True,
+        style=discord.TextStyle.paragraph,
+        max_length=1000
+    )
+    event_start = discord.ui.TextInput(
+        label="Start Time",
+        placeholder="YYYY-MM-DD HH:MM UTC",
+        required=True
+    )
+    event_end = discord.ui.TextInput(
+        label="End Time",
+        placeholder="YYYY-MM-DD HH:MM UTC",
+        required=True
+    )
+    event_thumbnail = discord.ui.TextInput(
+        label="Thumbnail URL",
+        placeholder="Optional: Enter an image URL for the event",
+        required=False
+    )
 
     def __init__(self, scheduler):
         super().__init__()
@@ -184,11 +241,21 @@ class ManualEventModal(discord.ui.Modal, title="Add Event Manually"):
             st = datetime.strptime(self.event_start.value, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
             et = datetime.strptime(self.event_end.value, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
         except ValueError:
-            return await interaction.response.send_message("❌ Invalid time format.", ephemeral=True)
+            return await interaction.response.send_message(
+                "❌ Invalid time format. Please use YYYY-MM-DD HH:MM UTC",
+                ephemeral=True
+            )
+        
         s_epoch = int(st.timestamp())
         e_epoch = int(et.timestamp())
+        
         if e_epoch <= s_epoch:
-            return await interaction.response.send_message("❌ End must be after start.", ephemeral=True)
+            return await interaction.response.send_message(
+                "❌ End time must be after start time.",
+                ephemeral=True
+            )
+
+        await interaction.response.defer(ephemeral=True)
         await self.scheduler.create_event(
             interaction,
             title=self.event_title.value,
@@ -198,29 +265,40 @@ class ManualEventModal(discord.ui.Modal, title="Add Event Manually"):
             thumbnail=self.event_thumbnail.value
         )
 
-class TemplateEventModal(discord.ui.Modal, title="Schedule Hall Of Governors"):
-    event_start = discord.ui.TextInput(label="Start (YYYY-MM-DD HH:MM UTC)", required=True)
+class TemplateEventModal(discord.ui.Modal):
+    event_start = discord.ui.TextInput(
+        label="Start Time",
+        placeholder="YYYY-MM-DD HH:MM UTC",
+        required=True
+    )
 
     def __init__(self, scheduler, template_key):
-        super().__init__()
+        template = EVENT_TEMPLATES[template_key]
+        super().__init__(title=f"Schedule {template['title']}")
         self.scheduler = scheduler
         self.template_key = template_key
+        self.template = template
 
     async def on_submit(self, interaction: discord.Interaction):
-        template = EVENT_TEMPLATES[self.template_key]
         try:
             st = datetime.strptime(self.event_start.value, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
         except ValueError:
-            return await interaction.response.send_message("❌ Invalid time format.", ephemeral=True)
+            return await interaction.response.send_message(
+                "❌ Invalid time format. Please use YYYY-MM-DD HH:MM UTC",
+                ephemeral=True
+            )
+
         s_epoch = int(st.timestamp())
-        e_epoch = s_epoch + template["duration_minutes"] * 60
+        e_epoch = s_epoch + self.template["duration_minutes"] * 60
+
+        await interaction.response.defer(ephemeral=True)
         await self.scheduler.create_event(
             interaction,
-            title=template["title"],
-            description=template["description"],
+            title=self.template["title"],
+            description=self.template["description"],
             s_epoch=s_epoch,
             e_epoch=e_epoch,
-            thumbnail=template["thumbnail"],
+            thumbnail=self.template["thumbnail"],
             template_key=self.template_key
         )
 
@@ -576,9 +654,10 @@ class EventScheduler(commands.Cog):
                 guild,
                 interaction.channel
             )
-            return await interaction.response.send_message(
+            return await interaction.followup.send(
                 "❌ Time must be in the future.", ephemeral=True
             )
+
         guild_cfg = gcfg.setdefault(str(guild.id), {})
         new_id = str(uuid.uuid4())[:8]
         entry = {
@@ -610,7 +689,31 @@ class EventScheduler(commands.Cog):
         else:
             ch = discord.utils.get(guild.text_channels, name=EVENT_CHANNEL)
             if not ch:
-                ch = await ensure_channel(guild, EVENT_CHANNEL)
+                try:
+                    ch = await ensure_channel(guild, EVENT_CHANNEL)
+                except Exception as e:
+                    live_feed.log(
+                        "Failed to create event channel",
+                        f"Guild: {guild.name} • Error: {str(e)}",
+                        guild,
+                        None
+                    )
+                    return await interaction.followup.send(
+                        "❌ Failed to create event channel. Please contact an administrator.",
+                        ephemeral=True
+                    )
+
+        if not ch:
+            live_feed.log(
+                "Failed to find event channel",
+                f"Guild: {guild.name} • Channel ID: {chan_id}",
+                guild,
+                None
+            )
+            return await interaction.followup.send(
+                "❌ Could not find event channel. Please contact an administrator.",
+                ephemeral=True
+            )
 
         # If this is the soonest event, cancel the current active event and start this one
         soonest_entry = min(ev_list, key=lambda x: x["start_epoch"])
@@ -635,6 +738,7 @@ class EventScheduler(commands.Cog):
                             )
                         except (discord.NotFound, discord.Forbidden):
                             pass
+
             # Start the new soonest event
             ev = EventEntry(
                 id=new_id,
@@ -643,43 +747,70 @@ class EventScheduler(commands.Cog):
                 start_epoch=s_epoch,
                 end_epoch=e_epoch,
                 guild_id=guild.id,
-                thumbnail=thumbnail,
+                thumbnail=thumbnail or "",  # Ensure thumbnail is never None
                 template_key=template_key
             )
             self.events[new_id] = ev
-            # Send the embed immediately and persist its ID
-            ev.message = await ch.send(embed=ev.make_embed())
-            ev.message_id = ev.message.id
-            for e in ev_list:
-                if e["id"] == new_id:
-                    e["message_id"] = ev.message_id
-            save_config(gcfg)
-            # Now schedule its lifecycle
-            ev.task = asyncio.create_task(self._run_event_cycle(guild, ev, ch))
-            # If the event is already within the reminder or final call window, send the appropriate notification immediately
-            now = int(time.time())
-            ping_settings = get_event_ping_settings(str(guild.id))
-            
-            reminder_time = s_epoch - (ping_settings.reminder_offset * 60)
-            final_call_time = s_epoch - (ping_settings.final_call_offset * 60)
-            
-            if now >= reminder_time and now < final_call_time and ping_settings.reminder_enabled:
-                reminder_id = await self._send_event_ping(ch, guild_cfg, ping_settings.reminder_offset)
-                if reminder_id:
-                    guild_cfg.setdefault("event", {})["reminder_id"] = reminder_id
-                    save_config(gcfg)
-            elif now >= final_call_time and now < s_epoch and ping_settings.final_call_enabled:
-                reminder_id = await self._send_event_ping(ch, guild_cfg, ping_settings.final_call_offset)
-                if reminder_id:
-                    guild_cfg.setdefault("event", {})["reminder_id"] = reminder_id
-                    save_config(gcfg)
 
-        await interaction.response.send_message(
+            try:
+                # Send the embed immediately and persist its ID
+                ev.message = await ch.send(embed=ev.make_embed())
+                ev.message_id = ev.message.id
+                for e in ev_list:
+                    if e["id"] == new_id:
+                        e["message_id"] = ev.message_id
+                save_config(gcfg)
+
+                # Now schedule its lifecycle
+                ev.task = asyncio.create_task(self._run_event_cycle(guild, ev, ch))
+
+                # If the event is already within the reminder or final call window, send the appropriate notification immediately
+                now = int(time.time())
+                ping_settings = get_event_ping_settings(str(guild.id))
+                
+                reminder_time = s_epoch - (ping_settings.reminder_offset * 60)
+                final_call_time = s_epoch - (ping_settings.final_call_offset * 60)
+                
+                if now >= reminder_time and now < final_call_time and ping_settings.reminder_enabled:
+                    reminder_id = await self._send_event_ping(ch, guild_cfg, ping_settings.reminder_offset)
+                    if reminder_id:
+                        guild_cfg.setdefault("event", {})["reminder_id"] = reminder_id
+                        save_config(gcfg)
+                elif now >= final_call_time and now < s_epoch and ping_settings.final_call_enabled:
+                    reminder_id = await self._send_event_ping(ch, guild_cfg, ping_settings.final_call_offset)
+                    if reminder_id:
+                        guild_cfg.setdefault("event", {})["reminder_id"] = reminder_id
+                        save_config(gcfg)
+
+            except discord.Forbidden:
+                live_feed.log(
+                    "Failed to send event message",
+                    f"Guild: {guild.name} • Event: {title} • Error: Missing permissions",
+                    guild,
+                    ch
+                )
+                return await interaction.followup.send(
+                    "❌ Bot lacks permissions to send messages in the event channel.",
+                    ephemeral=True
+                )
+            except Exception as e:
+                live_feed.log(
+                    "Failed to send event message",
+                    f"Guild: {guild.name} • Event: {title} • Error: {str(e)}",
+                    guild,
+                    ch
+                )
+                return await interaction.followup.send(
+                    "❌ An error occurred while creating the event. Please try again.",
+                    ephemeral=True
+                )
+
+        await interaction.followup.send(
             f"✅ Event `{new_id}` scheduled for <t:{s_epoch}:F> to <t:{e_epoch}:F>.",
             ephemeral=True
         )
 
-    @app_commands.command(name="addevent", description="🏆 Schedule a new event (manual or template)")
+    @app_commands.command(name="addevent", description="🏆 Schedule a new event")
     async def addevent(self, interaction: discord.Interaction):
         live_feed.log(
             "Event creation started",
@@ -687,8 +818,12 @@ class EventScheduler(commands.Cog):
             interaction.guild,
             interaction.channel
         )
-        view = AddEventModeSelect(self.bot, self)
-        await interaction.response.send_message("How would you like to add an event?", view=view, ephemeral=True)
+        view = AddEventView(self.bot, self)
+        await interaction.response.send_message(
+            "Choose how to create your event:",
+            view=view,
+            ephemeral=True
+        )
 
     @app_commands.command(name="cancelevent", description="❌ Cancel a scheduled event")
     async def cancelevent(

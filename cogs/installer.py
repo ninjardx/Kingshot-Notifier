@@ -13,7 +13,7 @@ from config import (
     CATEGORY_NAME, ROLE_EMOJIS,
     REACTION_CHANNEL, BEAR_LOG_CHANNEL,
 )
-from command_center import live_feed
+from admin_tools import live_feed
 from welcome_embeds import (
     make_bear_welcome_embed,
     make_arena_welcome_embed,

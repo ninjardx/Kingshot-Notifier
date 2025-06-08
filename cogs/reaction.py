@@ -5,7 +5,7 @@ from discord.ext import commands
 import logging
 from helpers import save_config
 from config import ROLE_EMOJIS, gcfg
-from command_center import live_feed
+from admin_tools import live_feed
 
 log = logging.getLogger("kingshot")
 

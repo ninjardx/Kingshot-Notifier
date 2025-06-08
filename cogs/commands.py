@@ -7,7 +7,7 @@ from discord import app_commands, ui, Interaction, Embed
 
 from config import EMBED_COLOR_PRIMARY
 from helpers import ensure_channel
-from command_center import live_feed
+from admin_tools import live_feed
 
 log = logging.getLogger("kingshot")
 
@@ -106,7 +106,7 @@ class General(commands.Cog):
 
     @app_commands.command(
         name="help",
-        description="View all Kingshot Bot commands"
+        description="💠View all Kingshot Bot commands"
     )
     async def help(self, interaction: Interaction):
         """Show help information."""
@@ -119,33 +119,37 @@ class General(commands.Cog):
         embed = Embed(
             title="🤴 Kingshot Bot • Help",
             description=(
-                "**Here's what I can do:**\n\n"
-                "🛠️ **Admin Commands:**\n"
-                "• `/install auto` — full automatic setup\n"
-                "• `/install manual` — select your own channels\n"
-                "• `/uninstall` — remove all bot channels/roles\n\n"
-                "<:BEAREVENT:1375520846407270561> **Bear Events:**\n"
-                "• `/setbeartime` — schedule a Bear attack\n"
-                "• `/listbears` — list scheduled Bears\n"
-                "• `/cancelbear` — cancel a Bear event\n\n"
-                "⚔️ **Arena Battles:**\n"
-                "• (Automatically posted daily)\n\n"
-                "🏆 **Events:**\n"
-                "• `/addevent` — schedule a new event\n"
-                "• `/listevents` — list upcoming events\n"
-                "• `/cancelevent` — cancel an event\n\n"
-                "🪄 **Misc:**\n"
-                "• `/synccommands` — force sync of slash commands\n"
-                "• `/purge` — quickly remove messages\n\n"
-                "📌 **[Join the support server](https://discord.gg/MPFdHdQXzf)**"
+        "**Here's what I can do:**\n\n"
+        "🛠️ **Admin Commands:**\n"
+        "• `/install auto` — full automatic setup\n"
+        "• `/install manual` — select your own channels\n"
+        "• `/uninstall` — remove all bot channels/roles\n\n"
+        "<:BEAREVENT:1375520846407270561> **Bear Events:**\n"
+        "• `/setbeartime` — schedule a Bear attack\n"
+        "• `/listbears` — list scheduled Bears\n"
+        "• `/cancelbear` — cancel a Bear event\n\n"
+        "⚔️ **Arena Battles:**\n"
+        "• (Automatically posted daily)\n\n"
+        "🏆 **Events:**\n"
+        "• `/addevent` — schedule a new event\n"
+        "• `/listevents` — list upcoming events\n"
+        "• `/cancelevent` — cancel an event\n\n"
+        "📣 **Notifications:**\n"
+        "• `/viewsettings` — show current ping settings\n"
+        "• `/setarenaping` — configure arena pings\n"
+        "• `/setbearpings` — configure bear pings\n"
+        "• `/seteventpings` — configure event pings\n\n"
+        "🪄 **Misc:**\n"
+        "• `/embed` — create an embed message with the bot\n"
+        "• `/synccommands` — force sync of slash commands\n"
+        "• `/purge` — quickly remove messages\n\n"
+        "📌 **[Join the support server](https://discord.gg/MPFdHdQXzf)**"
             ),
             color=EMBED_COLOR_PRIMARY
         )
         embed.set_footer(
             text="Kingshot Bot • created by ninjardx 👑",
-            icon_url=self.bot.user.avatar.url
-                if self.bot.user.avatar
-                else discord.Embed.Empty
+            icon_url=self.bot.user.avatar.url if self.bot.user.avatar else None
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 

@@ -7,7 +7,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 from config import DEFAULT_ACTIVITY, DEFAULT_ACTIVITY_TYPE, DEFAULT_STATUS
 import sys
-
+from admin_tools import start_admin_tools
 
 load_dotenv()  # ⬅️ This loads variables from .env into os.environ
 
@@ -49,7 +49,8 @@ COGS = [
     "cogs.bear",
     "cogs.commands",
     "cogs.events",
-    "cogs.installer"
+    "cogs.installer",
+    "cogs.ping_config"
 ]
 
 async def dummy_lifecycle():
@@ -106,8 +107,8 @@ async def on_ready():
     log.info(f"Logged in as {bot.user} (ID: {bot.user.id})")
 
     # Start command center after bot is ready
-    start_command_center(bot)
-    log.info("Command center started")
+    start_admin_tools(bot)
+    log.info("Admin tools started")
 
     for guild in bot.guilds:
         log.info(f"Available in: {guild.name} ({guild.id})")

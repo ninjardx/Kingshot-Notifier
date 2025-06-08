@@ -3,14 +3,14 @@ from discord import app_commands
 from discord.ext import commands
 import logging
 from typing import Literal, Optional
-from ..config_helpers import (
+from config_helpers import (
     get_bear_ping_settings, update_bear_ping_setting,
     get_arena_ping_settings, update_arena_ping_setting,
     get_event_ping_settings, update_event_ping_setting,
     get_all_ping_settings, ConfigValidationError,
     _load_config, _save_config
 )
-from ..welcome_embeds import (
+from welcome_embeds import (
     make_bear_welcome_embed,
     make_arena_welcome_embed,
     make_event_welcome_embed
@@ -81,58 +81,34 @@ class PingConfig(commands.Cog):
     
     @app_commands.command(name="setbearpings")
     @app_commands.describe(
-        action="The action to perform (toggle or set)",
-        phase="The notification phase to modify",
-        value="The value to set (true/false for toggle, 1-60 for offset)"
+        phase="The notification phase to modify (incoming or pre-attack)",
+        action="Whether to toggle the ping on/off or set its timing",
+        value="For toggle: true/false, For set: minutes before event (1-60)"
     )
     @app_commands.choices(
-        action=[
-            app_commands.Choice(name="toggle", value="toggle"),
-            app_commands.Choice(name="set", value="set"),
-            app_commands.Choice(name="view", value="view")
-        ],
         phase=[
             app_commands.Choice(name="incoming", value="incoming"),
             app_commands.Choice(name="pre_attack", value="pre_attack")
+        ],
+        action=[
+            app_commands.Choice(name="toggle", value="toggle"),
+            app_commands.Choice(name="set", value="set")
         ]
     )
     async def setbearpings(
         self,
         interaction: discord.Interaction,
-        action: Literal["toggle", "set", "view"],
-        phase: Optional[str] = None,
-        value: Optional[str] = None
+        phase: str,
+        action: Literal["toggle", "set"],
+        value: str
     ):
         """Configure bear notification settings"""
         await interaction.response.defer(ephemeral=True)
         
         try:
-            if action == "view":
-                settings = get_bear_ping_settings(str(interaction.guild_id))
-                embed = discord.Embed(
-                    title="🐻 Bear Notification Settings",
-                    color=discord.Color.blue()
-                )
-                embed.add_field(
-                    name="Incoming Ping",
-                    value=f"{'✅ Enabled' if settings.incoming_enabled else '❌ Disabled'} (60 minutes)",
-                    inline=False
-                )
-                embed.add_field(
-                    name="Pre-Attack Ping",
-                    value=f"{'✅ Enabled' if settings.pre_attack_enabled else '❌ Disabled'} ({settings.pre_attack_offset} minutes)",
-                    inline=False
-                )
-                await interaction.followup.send(embed=embed, ephemeral=True)
-                return
-            
-            if not phase or not value:
-                await interaction.followup.send("❌ Please specify both phase and value", ephemeral=True)
-                return
-            
             if action == "toggle":
                 if value.lower() not in ["true", "false"]:
-                    await interaction.followup.send("❌ Value must be 'true' or 'false'", ephemeral=True)
+                    await interaction.followup.send("❌ For toggle action, value must be 'true' or 'false'", ephemeral=True)
                     return
                 
                 bool_value = value.lower() == "true"
@@ -154,15 +130,15 @@ class PingConfig(commands.Cog):
             
             elif action == "set":
                 if phase != "pre_attack":
-                    await interaction.followup.send("❌ Only pre-attack offset can be modified", ephemeral=True)
+                    await interaction.followup.send("❌ Only pre-attack timing can be modified. Incoming ping is fixed at 60 minutes.", ephemeral=True)
                     return
                 
                 try:
                     offset = int(value)
                     update_bear_ping_setting(str(interaction.guild_id), "pre_attack_offset", offset)
-                    await interaction.followup.send(f"✅ Pre-attack ping updated to {offset} minutes", ephemeral=True)
+                    await interaction.followup.send(f"✅ Pre-attack ping updated to {offset} minutes before the bear", ephemeral=True)
                 except ValueError:
-                    await interaction.followup.send("❌ Offset must be a number", ephemeral=True)
+                    await interaction.followup.send("❌ For set action, value must be a number between 1-60 minutes", ephemeral=True)
             
             # Update welcome message after any change
             await sync_welcome_embed(self.bot, str(interaction.guild_id), "bear")
@@ -175,47 +151,28 @@ class PingConfig(commands.Cog):
     
     @app_commands.command(name="setarenaping")
     @app_commands.describe(
-        action="The action to perform (toggle, set, or view)",
-        value="The value to set (true/false for toggle, 1-60 for offset)"
+        action="Whether to toggle the ping on/off or set its timing",
+        value="For toggle: true/false, For set: minutes before arena (1-60)"
     )
     @app_commands.choices(
         action=[
             app_commands.Choice(name="toggle", value="toggle"),
-            app_commands.Choice(name="set", value="set"),
-            app_commands.Choice(name="view", value="view")
+            app_commands.Choice(name="set", value="set")
         ]
     )
     async def setarenaping(
         self,
         interaction: discord.Interaction,
-        action: Literal["toggle", "set", "view"],
-        value: Optional[str] = None
+        action: Literal["toggle", "set"],
+        value: str
     ):
         """Configure arena notification settings"""
         await interaction.response.defer(ephemeral=True)
         
         try:
-            if action == "view":
-                settings = get_arena_ping_settings(str(interaction.guild_id))
-                embed = discord.Embed(
-                    title="⚔ Arena Notification Settings",
-                    color=discord.Color.blue()
-                )
-                embed.add_field(
-                    name="Arena Ping",
-                    value=f"{'✅ Enabled' if settings.ping_enabled else '❌ Disabled'} ({settings.ping_offset} minutes)",
-                    inline=False
-                )
-                await interaction.followup.send(embed=embed, ephemeral=True)
-                return
-            
-            if not value:
-                await interaction.followup.send("❌ Please specify a value", ephemeral=True)
-                return
-            
             if action == "toggle":
                 if value.lower() not in ["true", "false"]:
-                    await interaction.followup.send("❌ Value must be 'true' or 'false'", ephemeral=True)
+                    await interaction.followup.send("❌ For toggle action, value must be 'true' or 'false'", ephemeral=True)
                     return
                 
                 bool_value = value.lower() == "true"
@@ -232,9 +189,9 @@ class PingConfig(commands.Cog):
                 try:
                     offset = int(value)
                     update_arena_ping_setting(str(interaction.guild_id), "ping_offset", offset)
-                    await interaction.followup.send(f"✅ Arena ping updated to {offset} minutes", ephemeral=True)
+                    await interaction.followup.send(f"✅ Arena ping updated to {offset} minutes before opening", ephemeral=True)
                 except ValueError:
-                    await interaction.followup.send("❌ Offset must be a number", ephemeral=True)
+                    await interaction.followup.send("❌ For set action, value must be a number between 1-60 minutes", ephemeral=True)
             
             # Update welcome message after any change
             await sync_welcome_embed(self.bot, str(interaction.guild_id), "arena")
@@ -247,58 +204,34 @@ class PingConfig(commands.Cog):
     
     @app_commands.command(name="seteventpings")
     @app_commands.describe(
-        action="The action to perform (toggle or set)",
-        phase="The notification phase to modify",
-        value="The value to set (true/false for toggle, 1-60 for offset)"
+        phase="The notification phase to modify (reminder or final call)",
+        action="Whether to toggle the ping on/off or set its timing",
+        value="For toggle: true/false, For set: minutes before event (1-60)"
     )
     @app_commands.choices(
-        action=[
-            app_commands.Choice(name="toggle", value="toggle"),
-            app_commands.Choice(name="set", value="set"),
-            app_commands.Choice(name="view", value="view")
-        ],
         phase=[
             app_commands.Choice(name="reminder", value="reminder"),
             app_commands.Choice(name="final_call", value="final_call")
+        ],
+        action=[
+            app_commands.Choice(name="toggle", value="toggle"),
+            app_commands.Choice(name="set", value="set")
         ]
     )
     async def seteventpings(
         self,
         interaction: discord.Interaction,
-        action: Literal["toggle", "set", "view"],
-        phase: Optional[str] = None,
-        value: Optional[str] = None
+        phase: str,
+        action: Literal["toggle", "set"],
+        value: str
     ):
         """Configure event notification settings"""
         await interaction.response.defer(ephemeral=True)
         
         try:
-            if action == "view":
-                settings = get_event_ping_settings(str(interaction.guild_id))
-                embed = discord.Embed(
-                    title="🏆 Event Notification Settings",
-                    color=discord.Color.blue()
-                )
-                embed.add_field(
-                    name="Reminder Ping",
-                    value=f"{'✅ Enabled' if settings.reminder_enabled else '❌ Disabled'} ({settings.reminder_offset} minutes)",
-                    inline=False
-                )
-                embed.add_field(
-                    name="Final Call Ping",
-                    value=f"{'✅ Enabled' if settings.final_call_enabled else '❌ Disabled'} ({settings.final_call_offset} minutes)",
-                    inline=False
-                )
-                await interaction.followup.send(embed=embed, ephemeral=True)
-                return
-            
-            if not phase or not value:
-                await interaction.followup.send("❌ Please specify both phase and value", ephemeral=True)
-                return
-            
             if action == "toggle":
                 if value.lower() not in ["true", "false"]:
-                    await interaction.followup.send("❌ Value must be 'true' or 'false'", ephemeral=True)
+                    await interaction.followup.send("❌ For toggle action, value must be 'true' or 'false'", ephemeral=True)
                     return
                 
                 bool_value = value.lower() == "true"
@@ -323,12 +256,12 @@ class PingConfig(commands.Cog):
                     offset = int(value)
                     if phase == "reminder":
                         update_event_ping_setting(str(interaction.guild_id), "reminder_offset", offset)
-                        await interaction.followup.send(f"✅ Reminder ping updated to {offset} minutes", ephemeral=True)
+                        await interaction.followup.send(f"✅ Reminder ping updated to {offset} minutes before event", ephemeral=True)
                     elif phase == "final_call":
                         update_event_ping_setting(str(interaction.guild_id), "final_call_offset", offset)
-                        await interaction.followup.send(f"✅ Final call ping updated to {offset} minutes", ephemeral=True)
+                        await interaction.followup.send(f"✅ Final call ping updated to {offset} minutes before event", ephemeral=True)
                 except ValueError:
-                    await interaction.followup.send("❌ Offset must be a number", ephemeral=True)
+                    await interaction.followup.send("❌ For set action, value must be a number between 1-60 minutes", ephemeral=True)
             
             # Update welcome message after any change
             await sync_welcome_embed(self.bot, str(interaction.guild_id), "event")
@@ -341,7 +274,7 @@ class PingConfig(commands.Cog):
     
     @app_commands.command(name="viewsettings")
     async def viewsettings(self, interaction: discord.Interaction):
-        """View all notification settings"""
+        """📋 View all notification settings"""
         await interaction.response.defer(ephemeral=True)
         
         try:

@@ -52,7 +52,9 @@ EMOJI_THUMBNAILS_EVENTS = {
     "all_out_event": "https://cdn.discordapp.com/emojis/1375519529479704677.png",
     "viking_vengeance": "https://cdn.discordapp.com/emojis/1375581618093166653.png",
     "swordland_showdown": "https://cdn.discordapp.com/emojis/1375519488568459274.png",
-    "kingdom_v_kingdom": "https://cdn.discordapp.com/emojis/1375519564862853171.png"
+    "kingdom_v_kingdom": "https://cdn.discordapp.com/emojis/1375519564862853171.png",
+    "sanctuary_battles": "https://cdn.discordapp.com/emojis/1381360264095596635.png",
+    "Castle_Battle": "https://cdn.discordapp.com/emojis/1381350545159225365.png"
 }
 
 # ─── Date/Time Formats ──────────────────────────────────────
