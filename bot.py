@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from config import DEFAULT_ACTIVITY, DEFAULT_ACTIVITY_TYPE, DEFAULT_STATUS
 import sys
 from admin_tools import start_admin_tools
+from helpers import update_guild_count
 
 load_dotenv()  # ⬅️ This loads variables from .env into os.environ
 
@@ -28,7 +29,7 @@ if not token and DISCORD_ENABLED:
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)-8s %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 log = logging.getLogger("kingshot")
 
@@ -39,24 +40,28 @@ intents.members = True
 intents.reactions = True
 intents.message_content = True
 
-bot = commands.Bot(command_prefix=commands.when_mentioned, help_command=None, intents=intents)
+bot = commands.Bot(
+    command_prefix=commands.when_mentioned, help_command=None, intents=intents
+)
 bot.role_message_ids = {}
 
 # ─── Cogs List ───
-COGS = [    
+COGS = [
     "cogs.reaction",
     "cogs.arena",
     "cogs.bear",
     "cogs.commands",
     "cogs.events",
     "cogs.installer",
-    "cogs.ping_config"
+    "cogs.ping_config",
 ]
+
 
 async def dummy_lifecycle():
     """Keeps bot alive and lets all startup tasks/cogs initialize without Discord connection"""
     await asyncio.sleep(2)
     log.info("Dummy lifecycle complete (no Discord connection)")
+
 
 # ─── Main Entrypoint ───
 async def main():
@@ -86,10 +91,10 @@ async def main():
             log.info("Syncing commands...")
             synced = await bot.tree.sync()
             log.info(f"✅ Globally synced {len(synced)} commands.")
-        
+
         # Keep the bot running
         await bot_task
-        
+
     except Exception as e:
         log.exception("Bot encountered an exception:", exc_info=e)
         if DISCORD_ENABLED:  # Only exit in production mode
@@ -102,6 +107,7 @@ async def main():
             except Exception as e:
                 log.error(f"Error during shutdown: {e}")
 
+
 @bot.event
 async def on_ready():
     log.info(f"Logged in as {bot.user} (ID: {bot.user.id})")
@@ -110,8 +116,11 @@ async def on_ready():
     start_admin_tools(bot)
     log.info("Admin tools started")
 
+    await update_guild_count(bot)
+
     for guild in bot.guilds:
         log.info(f"Available in: {guild.name} ({guild.id})")
-        
+
+
 if __name__ == "__main__":
     asyncio.run(main())
