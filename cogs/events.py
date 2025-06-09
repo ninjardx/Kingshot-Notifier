@@ -21,7 +21,7 @@ EVENT_TEMPLATES = {
         "title": "Hall Of Governors",
         "description": "Compete in the Hall Of Governors event!",
         "thumbnail": "https://example.com/hog.png",
-        "duration_minutes": 7 * 24 * 60  # 9 days
+        "duration_minutes": 7 * 24 * 60  # 7 days
     },
     "all_out_event": {
         "title": "All Out Event",
