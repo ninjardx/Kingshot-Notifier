@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Kingshot Bot – Bear Scheduler 
+Kingshot Bot – Bear Scheduler
 ====================================================
 
 """
@@ -28,7 +28,7 @@ from config import (
     EMBED_COLOR_PREATTACK,
     EMBED_COLOR_ATTACK,
     EMBED_COLOR_VICTORY,
-    EMOJI_THUMBNAILS
+    EMOJI_THUMBNAILS,
 )
 from admin_tools import live_feed
 from config_helpers import get_bear_ping_settings
@@ -36,6 +36,7 @@ from config_helpers import get_bear_ping_settings
 # ────────────────────────────────────────────────────────────
 # Embed Builders (copied exactly for visual parity)
 # ────────────────────────────────────────────────────────────
+
 
 def make_bear_welcome_embed() -> discord.Embed:
     embed = discord.Embed(
@@ -112,6 +113,7 @@ def make_phase_embed(phase: str, epoch: int) -> discord.Embed:
 # Data Model
 # ────────────────────────────────────────────────────────────
 
+
 class BearEvent:
     def __init__(self, guild_id: int, epoch: int, event_id: Optional[str] = None):
         self.id: str = event_id or str(uuid.uuid4())[:8]
@@ -125,6 +127,7 @@ class BearEvent:
 # ────────────────────────────────────────────────────────────
 # Cog Definition
 # ────────────────────────────────────────────────────────────
+
 
 class NewBearScheduler(commands.Cog):
     """Schedules Bear attacks with reliable phase transitions and minimal JSON writes."""
@@ -150,7 +153,7 @@ class NewBearScheduler(commands.Cog):
             # Handle cleanup of past bears that ended while bot was offline
             ch = await ensure_channel(guild, BEAR_CHANNEL)
             log_ch = await ensure_channel(guild, BEAR_LOG_CHANNEL)
-            
+
             for bear in bears[:]:  # Create a copy to safely modify during iteration
                 # Check if bear is past victory phase
                 if now > bear["epoch"] + BEAR_PHASE_OFFSETS["victory"] * 60:
@@ -161,9 +164,9 @@ class NewBearScheduler(commands.Cog):
                         "Cleaned up past bear (offline completion)",
                         f"Bear ID: {bear['id']} • Time: {dt.strftime('%Y-%m-%d %H:%M:%S UTC')}",
                         guild,
-                        ch
+                        ch,
                     )
-                    
+
                     # Clean up the bear message if it exists
                     if bear.get("message_id"):
                         try:
@@ -171,13 +174,13 @@ class NewBearScheduler(commands.Cog):
                             await msg.delete()
                         except (discord.NotFound, discord.Forbidden):
                             pass
-                    
+
                     # Clean up any remaining pings
                     await self._cleanup_pings(ch)
-                    
+
                     # Remove from bears list
                     bears.remove(bear)
-            
+
             # Save config after cleanup
             save_config(gcfg)
 
@@ -185,7 +188,11 @@ class NewBearScheduler(commands.Cog):
                 continue
 
             # Pick next-soonest bear that hasn't reached victory
-            active_bears = [b for b in bears if now <= b["epoch"] + BEAR_PHASE_OFFSETS["victory"] * 60]
+            active_bears = [
+                b
+                for b in bears
+                if now <= b["epoch"] + BEAR_PHASE_OFFSETS["victory"] * 60
+            ]
             if active_bears:
                 next_entry = min(active_bears, key=lambda b: b["epoch"])
                 ev = BearEvent(guild.id, next_entry["epoch"], next_entry["id"])
@@ -198,7 +205,7 @@ class NewBearScheduler(commands.Cog):
                     "Started bear on bot startup",
                     f"Bear ID: {ev.id} • Time: {dt.strftime('%Y-%m-%d %H:%M:%S UTC')}",
                     guild,
-                    ch
+                    ch,
                 )
 
     # ────────────── Core Event Loop ──────────────
@@ -214,7 +221,7 @@ class NewBearScheduler(commands.Cog):
 
         # Determine current phase and ensure we're in the correct phase
         now = int(time.time())
-        current_phase = self._calc_phase(now, ev.epoch)
+        current_phase = self._calc_phase(now, ev.epoch, ev.guild_id)
         ev.phase = current_phase
 
         # If we're past victory, clean up and exit
@@ -235,12 +242,15 @@ class NewBearScheduler(commands.Cog):
             cfg_bears = gcfg[str(ev.guild_id)]["bears"]
             cfg_bears[:] = [b for b in cfg_bears if b["id"] != ev.id]
             save_config(gcfg)
-            
+
             # Start next bear if exists
             guild_cfg = gcfg[str(ev.guild_id)]
-            remaining = [b for b in guild_cfg.get("bears", []) 
-                        if b["epoch"] > ev.epoch and 
-                        now <= b["epoch"] + BEAR_PHASE_OFFSETS["victory"] * 60]
+            remaining = [
+                b
+                for b in guild_cfg.get("bears", [])
+                if b["epoch"] > ev.epoch
+                and now <= b["epoch"] + BEAR_PHASE_OFFSETS["victory"] * 60
+            ]
             if remaining:
                 next_bear = min(remaining, key=lambda b: b["epoch"])
                 next_ev = BearEvent(ev.guild_id, next_bear["epoch"], next_bear["id"])
@@ -251,7 +261,7 @@ class NewBearScheduler(commands.Cog):
         # Sync embed and ping for current phase
         await self._send_or_edit_embed(ch, ev)
         await self._cleanup_pings(ch, keep_phase=ev.phase)
-        
+
         # Only send ping if phase is enabled in settings
         if ev.phase == "incoming" and ping_settings.incoming_enabled:
             await self._send_ping(ch, ev, ev.phase)
@@ -264,14 +274,14 @@ class NewBearScheduler(commands.Cog):
                 f"Skipping {ev.phase} ping (disabled in settings)",
                 f"Bear ID: {ev.id}",
                 guild,
-                ch
+                ch,
             )
 
         # Calculate time until next phase
         phase_seq = ["scheduled", "incoming", "pre_attack", "attack", "victory"]
         current_idx = phase_seq.index(current_phase)
         next_phase = phase_seq[current_idx + 1]
-        
+
         if next_phase == "victory":
             target = ev.epoch + BEAR_PHASE_OFFSETS["victory"] * 60
         else:
@@ -280,18 +290,18 @@ class NewBearScheduler(commands.Cog):
                 target = ev.epoch - (ping_settings.pre_attack_offset * 60)
             else:
                 target = ev.epoch + BEAR_PHASE_OFFSETS[next_phase] * 60
-        
+
         delay = target - now
         if delay > 0:
             await asyncio.sleep(delay)
             # Recalculate phase after sleep to ensure accuracy
             now = int(time.time())
-            new_phase = self._calc_phase(now, ev.epoch)
+            new_phase = self._calc_phase(now, ev.epoch, ev.guild_id)
             if new_phase != current_phase:
                 ev.phase = new_phase
                 await self._send_or_edit_embed(ch, ev)
                 await self._cleanup_pings(ch, keep_phase=new_phase)
-                
+
                 # Only send ping if phase is enabled in settings
                 if new_phase == "incoming" and ping_settings.incoming_enabled:
                     await self._send_ping(ch, ev, new_phase)
@@ -304,9 +314,9 @@ class NewBearScheduler(commands.Cog):
                         f"Skipping {new_phase} ping (disabled in settings)",
                         f"Bear ID: {ev.id}",
                         guild,
-                        ch
+                        ch,
                     )
-                
+
                 # If we've reached victory, handle cleanup
                 if new_phase == "victory":
                     log_ch = await ensure_channel(guild, BEAR_LOG_CHANNEL)
@@ -323,21 +333,28 @@ class NewBearScheduler(commands.Cog):
                     cfg_bears = gcfg[str(ev.guild_id)]["bears"]
                     cfg_bears[:] = [b for b in cfg_bears if b["id"] != ev.id]
                     save_config(gcfg)
-                    
+
                     # Start next bear if exists
                     guild_cfg = gcfg[str(ev.guild_id)]
-                    remaining = [b for b in guild_cfg.get("bears", []) 
-                                if b["epoch"] > ev.epoch and 
-                                now <= b["epoch"] + BEAR_PHASE_OFFSETS["victory"] * 60]
+                    remaining = [
+                        b
+                        for b in guild_cfg.get("bears", [])
+                        if b["epoch"] > ev.epoch
+                        and now <= b["epoch"] + BEAR_PHASE_OFFSETS["victory"] * 60
+                    ]
                     if remaining:
                         next_bear = min(remaining, key=lambda b: b["epoch"])
-                        next_ev = BearEvent(ev.guild_id, next_bear["epoch"], next_bear["id"])
+                        next_ev = BearEvent(
+                            ev.guild_id, next_bear["epoch"], next_bear["id"]
+                        )
                         self.events[next_ev.id] = next_ev
-                        next_ev.task = asyncio.create_task(self._run_event_cycle(next_ev))
+                        next_ev.task = asyncio.create_task(
+                            self._run_event_cycle(next_ev)
+                        )
                     return
 
         # Schedule remaining phases
-        for phase in phase_seq[current_idx + 1:]:
+        for phase in phase_seq[current_idx + 1 :]:
             if phase == "victory":
                 target = ev.epoch + BEAR_PHASE_OFFSETS["victory"] * 60
             else:
@@ -351,12 +368,12 @@ class NewBearScheduler(commands.Cog):
                 await asyncio.sleep(delay)
                 # Recalculate phase after sleep
                 now = int(time.time())
-                new_phase = self._calc_phase(now, ev.epoch)
+                new_phase = self._calc_phase(now, ev.epoch, ev.guild_id)
                 if new_phase != ev.phase:
                     ev.phase = new_phase
                     await self._send_or_edit_embed(ch, ev)
                     await self._cleanup_pings(ch, keep_phase=new_phase)
-                    
+
                     # Only send ping if phase is enabled in settings
                     if new_phase == "incoming" and ping_settings.incoming_enabled:
                         await self._send_ping(ch, ev, new_phase)
@@ -369,9 +386,9 @@ class NewBearScheduler(commands.Cog):
                             f"Skipping {new_phase} ping (disabled in settings)",
                             f"Bear ID: {ev.id}",
                             guild,
-                            ch
+                            ch,
                         )
-                    
+
                     if new_phase == "victory":
                         log_ch = await ensure_channel(guild, BEAR_LOG_CHANNEL)
                         await log_ch.send(embed=make_phase_embed("victory", ev.epoch))
@@ -387,32 +404,39 @@ class NewBearScheduler(commands.Cog):
                         cfg_bears = gcfg[str(ev.guild_id)]["bears"]
                         cfg_bears[:] = [b for b in cfg_bears if b["id"] != ev.id]
                         save_config(gcfg)
-                        
+
                         # Start next bear if exists
                         guild_cfg = gcfg[str(ev.guild_id)]
-                        remaining = [b for b in guild_cfg.get("bears", []) 
-                                    if b["epoch"] > ev.epoch and 
-                                    now <= b["epoch"] + BEAR_PHASE_OFFSETS["victory"] * 60]
+                        remaining = [
+                            b
+                            for b in guild_cfg.get("bears", [])
+                            if b["epoch"] > ev.epoch
+                            and now <= b["epoch"] + BEAR_PHASE_OFFSETS["victory"] * 60
+                        ]
                         if remaining:
                             next_bear = min(remaining, key=lambda b: b["epoch"])
-                            next_ev = BearEvent(ev.guild_id, next_bear["epoch"], next_bear["id"])
+                            next_ev = BearEvent(
+                                ev.guild_id, next_bear["epoch"], next_bear["id"]
+                            )
                             self.events[next_ev.id] = next_ev
-                            next_ev.task = asyncio.create_task(self._run_event_cycle(next_ev))
+                            next_ev.task = asyncio.create_task(
+                                self._run_event_cycle(next_ev)
+                            )
                         return
 
     # ────────────── Helpers ──────────────
 
     @staticmethod
-    def _calc_phase(now: int, epoch: int) -> str:
+    def _calc_phase(now: int, epoch: int, guild_id: int) -> str:
         """Calculate the current phase based on time and ping settings"""
         delta = now - epoch
         if delta >= BEAR_PHASE_OFFSETS["victory"] * 60:
             return "victory"
         if delta >= 0:
             return "attack"
-        
+
         # Get ping settings to determine pre-attack timing
-        ping_settings = get_bear_ping_settings(str(epoch))  # Use epoch as guild_id since we don't have it here
+        ping_settings = get_bear_ping_settings(str(guild_id))
         if delta >= -ping_settings.pre_attack_offset * 60:
             return "pre_attack"
         if delta >= BEAR_PHASE_OFFSETS["incoming"] * 60:
@@ -430,7 +454,7 @@ class NewBearScheduler(commands.Cog):
                     f"Updated bear phase to {ev.phase}",
                     f"Bear ID: {ev.id} • Time: {dt.strftime('%Y-%m-%d %H:%M:%S UTC')}",
                     ch.guild,
-                    ch
+                    ch,
                 )
                 return
             except (discord.NotFound, discord.Forbidden):
@@ -439,7 +463,7 @@ class NewBearScheduler(commands.Cog):
                     "Failed to update bear embed",
                     f"Bear ID: {ev.id} • Message not found",
                     ch.guild,
-                    ch
+                    ch,
                 )
 
         # Send new embed and persist its ID
@@ -450,7 +474,7 @@ class NewBearScheduler(commands.Cog):
             f"Created new bear {ev.phase} embed",
             f"Bear ID: {ev.id} • Time: {dt.strftime('%Y-%m-%d %H:%M:%S UTC')}",
             ch.guild,
-            ch
+            ch,
         )
         # update JSON so we can re-fetch/edit on next startup
         for b in gcfg[str(ch.guild.id)]["bears"]:
@@ -459,16 +483,18 @@ class NewBearScheduler(commands.Cog):
                 break
         save_config(gcfg)
 
-    async def _cleanup_pings(self, ch: discord.TextChannel, keep_phase: Optional[str] = None):
+    async def _cleanup_pings(
+        self, ch: discord.TextChannel, keep_phase: Optional[str] = None
+    ):
         """
         Delete all ping messages for phases != keep_phase
         by scanning the last 25 messages.
         """
         # core phrases for each phase
         patterns_map = {
-            "incoming":   "bear is approaching",
+            "incoming": "bear is approaching",
             "pre_attack": "get ready to attack the bear",
-            "attack":     "attack the bear"
+            "attack": "attack the bear",
         }
         # we only want to delete phrases *not* matching keep_phase
         to_delete = [txt for phase, txt in patterns_map.items() if phase != keep_phase]
@@ -489,9 +515,9 @@ class NewBearScheduler(commands.Cog):
 
         # ——— don't resend if this phase's ping already exists ———
         core_map = {
-            "incoming":   "bear is approaching",
+            "incoming": "bear is approaching",
             "pre_attack": "get ready to attack the bear",
-            "attack":     "attack the bear"
+            "attack": "attack the bear",
         }
         core = core_map[phase]
         async for msg in ch.history(limit=25):
@@ -507,9 +533,9 @@ class NewBearScheduler(commands.Cog):
                 role_ping = role.mention
 
         texts = {
-            "incoming":   f"{role_ping} — 🐾 bear is approaching! 🐾",
+            "incoming": f"{role_ping} — 🐾 bear is approaching! 🐾",
             "pre_attack": f"{role_ping} — <:BEAREVENT:1375520846407270561> get ready to attack the bear! 🎯",
-            "attack":     "**💥 ATTACK THE BEAR! <:BEARATTACKED:1375525984723275967>**",
+            "attack": "**💥 ATTACK THE BEAR! <:BEARATTACKED:1375525984723275967>**",
         }
         # Send ping for this phase
         await ch.send(texts[phase])
@@ -518,12 +544,14 @@ class NewBearScheduler(commands.Cog):
             f"Sent {phase} ping",
             f"Bear ID: {ev.id} • Time: {dt.strftime('%Y-%m-%d %H:%M:%S UTC')}",
             ch.guild,
-            ch
+            ch,
         )
 
     # ───────────── Slash Commands ─────────────
 
-    @app_commands.command(name="setbeartime", description="📆 Schedule a new bear attack!")
+    @app_commands.command(
+        name="setbeartime", description="📆 Schedule a new bear attack!"
+    )
     @app_commands.describe(timestamp="YYYY-MM-DD HH:MM (UTC) or epoch")
     async def setbeartime(self, interaction: discord.Interaction, timestamp: str):
         await interaction.response.defer(ephemeral=True)
@@ -531,21 +559,33 @@ class NewBearScheduler(commands.Cog):
             return await interaction.followup.send("❌ Admins only", ephemeral=True)
 
         try:
-            epoch = int(timestamp) if timestamp.isdigit() else int(
-                datetime.strptime(timestamp, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc).timestamp()
+            epoch = (
+                int(timestamp)
+                if timestamp.isdigit()
+                else int(
+                    datetime.strptime(timestamp, "%Y-%m-%d %H:%M")
+                    .replace(tzinfo=timezone.utc)
+                    .timestamp()
+                )
             )
         except Exception:
-            return await interaction.followup.send("❌ Invalid time format", ephemeral=True)
+            return await interaction.followup.send(
+                "❌ Invalid time format", ephemeral=True
+            )
 
         now = int(time.time())
         if epoch <= now:
-            return await interaction.followup.send("❌ Time must be in the future", ephemeral=True)
+            return await interaction.followup.send(
+                "❌ Time must be in the future", ephemeral=True
+            )
 
         guild_id = str(interaction.guild.id)
         cfg = gcfg.setdefault(guild_id, {})
         bears = cfg.setdefault("bears", [])
         if any(abs(b["epoch"] - epoch) < 3600 for b in bears):
-            return await interaction.followup.send("❌ Conflicts with another bear (±1\u202Fhour)", ephemeral=True)
+            return await interaction.followup.send(
+                "❌ Conflicts with another bear (±1\u202fhour)", ephemeral=True
+            )
 
         # Persist new bear
         new_id = str(uuid.uuid4())[:8]
@@ -558,7 +598,7 @@ class NewBearScheduler(commands.Cog):
             "Scheduled new bear",
             f"Bear ID: {new_id} • Time: {dt.strftime('%Y-%m-%d %H:%M:%S UTC')} • By: {interaction.user}",
             interaction.guild,
-            interaction.channel
+            interaction.channel,
         )
 
         # Find the current active bear event for this guild
@@ -590,32 +630,42 @@ class NewBearScheduler(commands.Cog):
                     "Cancelled active bear for new schedule",
                     f"Old Bear ID: {active_ev.id} • New Bear ID: {new_id}",
                     interaction.guild,
-                    interaction.channel
+                    interaction.channel,
                 )
             # Start the new bear event cycle
             ev = BearEvent(interaction.guild.id, epoch, new_id)
             self.events[ev.id] = ev
             ev.task = asyncio.create_task(self._run_event_cycle(ev))
-            await interaction.followup.send(f"✅ Bear scheduled for <t:{epoch}:F> (now active)", ephemeral=True)
+            await interaction.followup.send(
+                f"✅ Bear scheduled for <t:{epoch}:F> (now active)", ephemeral=True
+            )
         else:
             # Just queue the new bear, don't start its event cycle yet
-            await interaction.followup.send(f"✅ Bear scheduled for <t:{epoch}:F> (queued)", ephemeral=True)
+            await interaction.followup.send(
+                f"✅ Bear scheduled for <t:{epoch}:F> (queued)", ephemeral=True
+            )
 
-    @app_commands.command(name="cancelbear", description="❌ Cancel an upcoming bear event")
-    @app_commands.describe(bear_id="The ID of the bear to cancel (use /listbears to see IDs)")
+    @app_commands.command(
+        name="cancelbear", description="❌ Cancel an upcoming bear event"
+    )
+    @app_commands.describe(
+        bear_id="The ID of the bear to cancel (use /listbears to see IDs)"
+    )
     async def cancelbear(self, interaction: discord.Interaction, bear_id: str):
         await interaction.response.defer(ephemeral=True)
-        
+
         # First check if the bear exists in the config
         guild_id = str(interaction.guild.id)
         cfg = gcfg.get(guild_id, {})
         bears = cfg.get("bears", [])
-        
+
         # Find the bear in config
         bear_config = next((b for b in bears if b["id"] == bear_id), None)
         if not bear_config:
-            return await interaction.followup.send("⚠️ Bear not found in schedule", ephemeral=True)
-            
+            return await interaction.followup.send(
+                "⚠️ Bear not found in schedule", ephemeral=True
+            )
+
         # Now check if it's the active bear
         ev = self.events.get(bear_id)
         if not ev or ev.guild_id != interaction.guild.id:
@@ -627,9 +677,11 @@ class NewBearScheduler(commands.Cog):
                 "Removed queued bear from schedule",
                 f"Bear ID: {bear_id} • Time: {dt.strftime('%Y-%m-%d %H:%M:%S UTC')} • By: {interaction.user}",
                 interaction.guild,
-                interaction.channel
+                interaction.channel,
             )
-            return await interaction.followup.send("🗑️ Removed bear from schedule", ephemeral=True)
+            return await interaction.followup.send(
+                "🗑️ Removed bear from schedule", ephemeral=True
+            )
 
         # Cancel the active bear
         if ev.task:
@@ -643,7 +695,7 @@ class NewBearScheduler(commands.Cog):
                     "Error cancelling bear task",
                     f"Bear ID: {bear_id} • Error: {str(e)}",
                     interaction.guild,
-                    interaction.channel
+                    interaction.channel,
                 )
 
         # Cleanup embed & pings
@@ -657,21 +709,21 @@ class NewBearScheduler(commands.Cog):
                     "Bear message already deleted",
                     f"Bear ID: {bear_id}",
                     interaction.guild,
-                    interaction.channel
+                    interaction.channel,
                 )
             except discord.Forbidden:
                 live_feed.log(
                     "No permission to delete bear message",
                     f"Bear ID: {bear_id}",
                     interaction.guild,
-                    interaction.channel
+                    interaction.channel,
                 )
             except Exception as e:
                 live_feed.log(
                     "Error deleting bear message",
                     f"Bear ID: {bear_id} • Error: {str(e)}",
                     interaction.guild,
-                    interaction.channel
+                    interaction.channel,
                 )
 
         await self._cleanup_pings(ch)
@@ -686,7 +738,7 @@ class NewBearScheduler(commands.Cog):
             "Cancelled active bear",
             f"Bear ID: {bear_id} • Time: {dt.strftime('%Y-%m-%d %H:%M:%S UTC')} • By: {interaction.user}",
             interaction.guild,
-            interaction.channel
+            interaction.channel,
         )
 
         # Start the next soonest bear if any are queued
@@ -695,7 +747,9 @@ class NewBearScheduler(commands.Cog):
             next_bear = min(remaining_bears, key=lambda b: b["epoch"])
             # Only start if not already running
             if next_bear["id"] not in self.events:
-                next_ev = BearEvent(interaction.guild.id, next_bear["epoch"], next_bear["id"])
+                next_ev = BearEvent(
+                    interaction.guild.id, next_bear["epoch"], next_bear["id"]
+                )
                 self.events[next_ev.id] = next_ev
                 next_ev.task = asyncio.create_task(self._run_event_cycle(next_ev))
                 dt = datetime.fromtimestamp(next_bear["epoch"], tz=timezone.utc)
@@ -703,7 +757,7 @@ class NewBearScheduler(commands.Cog):
                     "Started next queued bear",
                     f"Bear ID: {next_bear['id']} • Time: {dt.strftime('%Y-%m-%d %H:%M:%S UTC')}",
                     interaction.guild,
-                    interaction.channel
+                    interaction.channel,
                 )
 
         await interaction.followup.send("🗑️ Bear cancelled", ephemeral=True)
@@ -713,23 +767,29 @@ class NewBearScheduler(commands.Cog):
         guild_id = str(interaction.guild.id)
         all_bears = gcfg.get(guild_id, {}).get("bears", [])
         if not all_bears:
-            return await interaction.response.send_message("📭 No bears scheduled", ephemeral=True)
+            return await interaction.response.send_message(
+                "📭 No bears scheduled", ephemeral=True
+            )
 
         now = int(time.time())
         # sort by scheduled time
         all_bears.sort(key=lambda b: b["epoch"])
 
-        embed = discord.Embed(title="<:BEAREVENT:1375520846407270561> Upcoming Bears", color=discord.Color.orange())
+        embed = discord.Embed(
+            title="<:BEAREVENT:1375520846407270561> Upcoming Bears",
+            color=discord.Color.orange(),
+        )
         for b in all_bears:
-            phase = self._calc_phase(now, b["epoch"])
+            phase = self._calc_phase(now, b["epoch"], interaction.guild.id)
             # marker 📍 once it's moved out of "scheduled"
             marker = "📍" if phase != "scheduled" else "🆔"
             embed.add_field(
                 name=f"{marker} {b['id']} — {phase}",
                 value=f"<t:{b['epoch']}:F> • <t:{b['epoch']}:R>",
-                inline=False
+                inline=False,
             )
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(NewBearScheduler(bot))
