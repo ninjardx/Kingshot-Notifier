@@ -9,6 +9,7 @@ from admin_tools import live_feed
 
 log = logging.getLogger("kingshot")
 
+
 class ReactionRole(commands.Cog):
     """Handles reaction-role setup and add/remove events."""
 
@@ -22,16 +23,14 @@ class ReactionRole(commands.Cog):
                 self.bot.role_message_ids[int(guild_id)] = msg_id
 
     async def setup_reactions(
-        self,
-        guild: discord.Guild,
-        channel: discord.TextChannel
+        self, guild: discord.Guild, channel: discord.TextChannel
     ) -> discord.Message:
         """Send the embed, add reactions, and persist."""
         live_feed.log(
             "Setting up reaction roles",
             f"Guild: {guild.name} • Channel: #{channel.name}",
             guild,
-            channel
+            channel,
         )
         embed = discord.Embed(
             title="📜 Choose Your Adventure!",
@@ -41,7 +40,7 @@ class ReactionRole(commands.Cog):
                 "⚔️ — **Arena Battles**: Be there when the arena opens\n"
                 "🏆 — **Event Alerts**: Stay in the loop for in game events!"
             ),
-            color=discord.Color.gold()
+            color=discord.Color.gold(),
         )
         embed.set_footer(text="👑 Kingshot Bot • Role Reactions • UTC")
         embed.set_thumbnail(url="")
@@ -52,10 +51,7 @@ class ReactionRole(commands.Cog):
 
         # Persist in unified config.json
         guild_cfg = gcfg.setdefault(str(guild.id), {})
-        guild_cfg["reaction"] = {
-            "channel_id": channel.id,
-            "message_id": msg.id
-        }
+        guild_cfg["reaction"] = {"channel_id": channel.id, "message_id": msg.id}
         save_config(gcfg)
 
         # Also keep in memory
@@ -65,7 +61,7 @@ class ReactionRole(commands.Cog):
             "Reaction role message created",
             f"Guild: {guild.name} • Channel: #{channel.name} • Message ID: {msg.id}",
             guild,
-            channel
+            channel,
         )
 
         # 🔁 Process existing reactions and apply roles immediately
@@ -82,7 +78,7 @@ class ReactionRole(commands.Cog):
         self,
         member: discord.Member,
         emoji: discord.PartialEmoji | str,
-        msg: discord.Message
+        msg: discord.Message,
     ):
         """
         Add the role corresponding to this emoji on setup or on_existing.
@@ -94,16 +90,22 @@ class ReactionRole(commands.Cog):
         role = discord.utils.get(member.guild.roles, name=role_name)
         if role and role not in member.roles:
             try:
+                # Track roles before applying the new one
+                before_roles = set(member.roles)
                 await member.add_roles(role)
-                # Get all roles that were just added (in case multiple reactions were processed)
-                new_roles = [r for r in member.roles if r.name in ROLE_EMOJIS.values() and r not in member.roles]
+                # Determine which reaction roles were newly added
+                new_roles = [
+                    r
+                    for r in member.roles
+                    if r.name in ROLE_EMOJIS.values() and r not in before_roles
+                ]
                 if new_roles:
                     role_names = ", ".join(r.name for r in new_roles)
                     live_feed.log(
                         "Roles added via reaction",
                         f"Guild: {member.guild.name} • User: {member} • Roles: {role_names}",
                         member.guild,
-                        msg.channel
+                        msg.channel,
                     )
             except discord.Forbidden:
                 log.warning(f"Cannot add role {role.name} to {member}.")
@@ -111,7 +113,7 @@ class ReactionRole(commands.Cog):
                     "Failed to add role via reaction",
                     f"Guild: {member.guild.name} • User: {member} • Role: {role.name} • Error: No permission",
                     member.guild,
-                    msg.channel
+                    msg.channel,
                 )
 
         return msg
@@ -139,18 +141,22 @@ class ReactionRole(commands.Cog):
         member = guild.get_member(payload.user_id)
         if role and member and not member.bot:
             try:
-                # Get current roles before adding new one
-                current_roles = set(member.roles)
+                # Track roles before adding the reaction role
+                before_roles = set(member.roles)
                 await member.add_roles(role)
-                # Get all new reaction roles after adding
-                new_roles = [r for r in member.roles if r.name in ROLE_EMOJIS.values() and r not in current_roles]
+                # Determine which reaction roles were newly added
+                new_roles = [
+                    r
+                    for r in member.roles
+                    if r.name in ROLE_EMOJIS.values() and r not in before_roles
+                ]
                 if new_roles:
                     role_names = ", ".join(r.name for r in new_roles)
                     live_feed.log(
                         "Roles added via reaction",
                         f"Guild: {guild.name} • User: {member} • Roles: {role_names}",
                         guild,
-                        None
+                        None,
                     )
             except discord.Forbidden:
                 log.warning(f"Cannot add role {role.name} to {member}.")
@@ -158,7 +164,7 @@ class ReactionRole(commands.Cog):
                     "Failed to add role via reaction",
                     f"Guild: {guild.name} • User: {member} • Role: {role.name} • Error: No permission",
                     guild,
-                    None
+                    None,
                 )
 
     @commands.Cog.listener()
@@ -187,14 +193,18 @@ class ReactionRole(commands.Cog):
                 current_roles = set(member.roles)
                 await member.remove_roles(role)
                 # Get all roles that were removed
-                removed_roles = [r for r in current_roles if r.name in ROLE_EMOJIS.values() and r not in member.roles]
+                removed_roles = [
+                    r
+                    for r in current_roles
+                    if r.name in ROLE_EMOJIS.values() and r not in member.roles
+                ]
                 if removed_roles:
                     role_names = ", ".join(r.name for r in removed_roles)
                     live_feed.log(
                         "Roles removed via reaction",
                         f"Guild: {guild.name} • User: {member} • Roles: {role_names}",
                         guild,
-                        None
+                        None,
                     )
             except discord.Forbidden:
                 log.warning(f"Cannot remove role {role.name} from {member}.")
@@ -202,7 +212,7 @@ class ReactionRole(commands.Cog):
                     "Failed to remove role via reaction",
                     f"Guild: {guild.name} • User: {member} • Role: {role.name} • Error: No permission",
                     guild,
-                    None
+                    None,
                 )
 
     @commands.Cog.listener()
@@ -212,7 +222,7 @@ class ReactionRole(commands.Cog):
             guild_cfg = gcfg.get(str(guild.id), {})
             rr = guild_cfg.get("reaction", {})
             chan_id = rr.get("channel_id")
-            msg_id  = rr.get("message_id")
+            msg_id = rr.get("message_id")
 
             if not chan_id or not msg_id:
                 continue
@@ -227,14 +237,14 @@ class ReactionRole(commands.Cog):
                     "Loaded reaction role message",
                     f"Guild: {guild.name} • Channel: #{ch.name} • Message ID: {msg_id}",
                     guild,
-                    ch
+                    ch,
                 )
             except (discord.NotFound, discord.Forbidden):
                 live_feed.log(
                     "Failed to load reaction role message",
                     f"Guild: {guild.name} • Channel ID: {chan_id} • Message ID: {msg_id} • Error: Message not found",
                     guild,
-                    None
+                    None,
                 )
                 continue
 
@@ -265,7 +275,7 @@ class ReactionRole(commands.Cog):
                                     "Failed to add role via reaction",
                                     f"Guild: {guild.name} • User: {member} • Role: {role.name} • Error: No permission",
                                     guild,
-                                    ch
+                                    ch,
                                 )
 
             # Log all roles added per member
@@ -277,8 +287,9 @@ class ReactionRole(commands.Cog):
                         "Roles added via reaction (startup)",
                         f"Guild: {guild.name} • User: {member} • Roles: {role_names}",
                         guild,
-                        ch
+                        ch,
                     )
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(ReactionRole(bot))
