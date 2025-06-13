@@ -3,6 +3,7 @@ import os
 import logging
 import asyncio
 import discord
+from discord import app_commands, Interaction
 from discord.ext import commands
 from dotenv import load_dotenv
 from config import DEFAULT_ACTIVITY, DEFAULT_ACTIVITY_TYPE, DEFAULT_STATUS
@@ -20,6 +21,8 @@ if os.getenv("CODESPACES") or "codex" in sys.argv[0].lower():
 
 # Validate token
 token = os.getenv("KINGSHOT_DEV_TOKEN")
+
+VERBOSE_ERRORS = os.getenv("KINGSHOT_VERBOSE_ERRORS") == "1"
 
 if not token and DISCORD_ENABLED:
     raise ValueError("❌ Bot token is missing. Set KINGSHOT_DEV_TOKEN in .env")
@@ -128,6 +131,32 @@ async def main():
 
 
 @bot.event
+async def on_app_command_error(
+    interaction: Interaction, error: app_commands.AppCommandError
+):
+    """Handle errors from slash commands."""
+    cmd = getattr(interaction.command, "qualified_name", "unknown")
+    guild = interaction.guild.name if interaction.guild else "DM"
+    channel = getattr(interaction.channel, "name", "DM")
+    user = interaction.user
+    log.exception(
+        "Command error in %s/%s (%s) by %s:",
+        guild,
+        channel,
+        cmd,
+        user,
+        exc_info=error,
+    )
+    message = "❌ An unexpected error occurred."
+    if VERBOSE_ERRORS:
+        message += f"\n```{type(error).__name__}: {error}```"
+    if interaction.response.is_done():
+        await interaction.followup.send(message, ephemeral=True)
+    else:
+        await interaction.response.send_message(message, ephemeral=True)
+
+
+@bot.event
 async def on_ready():
     log.info(f"Logged in as {bot.user} (ID: {bot.user.id})")
 
@@ -147,4 +176,3 @@ async def on_ready():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
