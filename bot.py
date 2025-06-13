@@ -7,8 +7,8 @@ from discord.ext import commands
 from dotenv import load_dotenv
 from config import DEFAULT_ACTIVITY, DEFAULT_ACTIVITY_TYPE, DEFAULT_STATUS
 import sys
-from admin_tools import start_admin_tools
-from helpers import update_guild_count
+from admin_tools import start_admin_tools, handle_command
+from helpers import update_guild_count, start_config_writer
 
 load_dotenv()  # ⬅️ This loads variables from .env into os.environ
 
@@ -63,6 +63,22 @@ async def dummy_lifecycle():
     log.info("Dummy lifecycle complete (no Discord connection)")
 
 
+async def terminal_input_loop(bot):
+    await asyncio.sleep(1)  # Give the bot time to initialize
+    print("\n💻 Terminal command input ready (type /help for options):")
+    while True:
+        try:
+            cmd_line = await asyncio.to_thread(input, "🧠 >> ")
+            if not cmd_line.strip():
+                continue
+            parts = cmd_line.strip().split()
+            cmd, args = parts[0], parts
+            handle_command(bot, cmd, args)
+        except (KeyboardInterrupt, EOFError):
+            print("\n🛑 Exiting terminal input loop...")
+            break
+
+
 # ─── Main Entrypoint ───
 async def main():
     log.info("Starting Kingshot Bot...")
@@ -92,6 +108,9 @@ async def main():
             synced = await bot.tree.sync()
             log.info(f"✅ Globally synced {len(synced)} commands.")
 
+        # Start terminal input loop
+        asyncio.create_task(terminal_input_loop(bot))
+
         # Keep the bot running
         await bot_task
 
@@ -112,6 +131,10 @@ async def main():
 async def on_ready():
     log.info(f"Logged in as {bot.user} (ID: {bot.user.id})")
 
+    # Start config writer task
+    start_config_writer()
+    log.info("Config writer started")
+
     # Start command center after bot is ready
     start_admin_tools(bot)
     log.info("Admin tools started")
@@ -124,3 +147,4 @@ async def on_ready():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

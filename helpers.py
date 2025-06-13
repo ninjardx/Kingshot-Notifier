@@ -14,6 +14,7 @@ CATEGORY_NAME = "👑 Kingshot Bot"
 # ─── Config File Helpers ────────────────────────────────────
 # A queue to batch up config writes
 _write_queue: asyncio.Queue[dict] = asyncio.Queue()
+_config_writer_task = None
 
 
 async def _config_writer():
@@ -26,8 +27,11 @@ async def _config_writer():
         _write_queue.task_done()
 
 
-# start the writer as soon as this module is imported
-asyncio.create_task(_config_writer())
+def start_config_writer():
+    """Start the config writer task. Call this when the bot is running."""
+    global _config_writer_task
+    if _config_writer_task is None:
+        _config_writer_task = asyncio.create_task(_config_writer())
 
 
 def load_config() -> dict:
