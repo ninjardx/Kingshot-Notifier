@@ -40,9 +40,11 @@ A powerful multi-server Discord bot designed for gaming communities, featuring c
 ---
 
 ## 🛠️ Installation
+**Use this link to add the bot to your server!**
+https://discord.com/oauth2/authorize?client_id=1366499729923379271&permissions=139855391824&integration_type=0&scope=bot+applications.commands
 
-### Quick Setup
-**Bot is in the maximum amount of servers currently! join the support server to be notified when it will be re-opened!**
+### Support server
+**join the support server to be notified of updates!**
 [**Join the support server here!**](https://discord.gg/MPFdHdQXzf)
 
 ### Required Permissions
